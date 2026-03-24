@@ -1,0 +1,11 @@
+{
+    "type": "module",
+    "name": "vpngate-openvpn",
+    "version": "1.0.0",
+    "description": "",
+    "main": "convert.js",
+
+    "keywords": [],
+    "author": "",
+    "license": "ISC"
+}
