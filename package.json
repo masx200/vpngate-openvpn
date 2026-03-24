@@ -6,6 +6,7 @@
   "main": "convert.js",
   "scripts": {
     "convert": "node convert.js",
+    "update": "node update-config.js",
     "merge": "node merge-openvpn-configs.js",
     "format": "deno fmt"
   },
