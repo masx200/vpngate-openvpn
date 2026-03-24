@@ -22,16 +22,18 @@ function processOvpnFile(filePath) {
     let modified = false;
     const newLines = [];
 
-    let hasHttpProxy = false;
-    let httpProxyIndex = -1;
+    let hasAuthUserPass = false;
+    let authUserPassIndex = -1;
 
-    // 第一遍遍历：处理 auth-user-pass 和查找 http-proxy
+    // 遍历所有行
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const trimmedLine = line.trimStart(); // 保留行尾空白，只去除开头空白
 
-      // 替换 auth-user-pass
+      // 处理 auth-user-pass 行
       if (trimmedLine.startsWith("auth-user-pass")) {
+        hasAuthUserPass = true;
+        authUserPassIndex = newLines.length;
         // 检查是否已经是目标配置
         if (trimmedLine !== AUTH_USER_PASS_LINE) {
           newLines.push(AUTH_USER_PASS_LINE);
@@ -39,34 +41,28 @@ function processOvpnFile(filePath) {
         } else {
           newLines.push(line);
         }
-      } // 查找 http-proxy 行
+      }
+      // 跳过原有的 http-proxy 行（后面统一添加）
       else if (trimmedLine.startsWith("http-proxy")) {
-        hasHttpProxy = true;
-        httpProxyIndex = newLines.length;
-        newLines.push(line); // 先保留原行，后面替换
-      } // 其他行保持不变
+        modified = true; // 删除旧行也算修改
+      }
+      // 其他行保持不变
       else {
         newLines.push(line);
       }
     }
 
-    // 第二遍遍历：处理 http-proxy
-    if (hasHttpProxy) {
-      // 替换现有的 http-proxy 行
-      if (newLines[httpProxyIndex].trim() !== HTTP_PROXY_LINE) {
-        newLines[httpProxyIndex] = HTTP_PROXY_LINE;
-        modified = true;
-      }
-    } else {
-      // 在 auth-user-pass 后添加 http-proxy
-      for (let i = 0; i < newLines.length; i++) {
-        if (newLines[i].includes("auth-user-pass")) {
-          newLines.splice(i + 1, 0, HTTP_PROXY_LINE);
-          modified = true;
-          break;
-        }
-      }
+    // 如果没有 auth-user-pass，添加它
+    if (!hasAuthUserPass) {
+      // 在文件开头添加
+      newLines.unshift(AUTH_USER_PASS_LINE);
+      authUserPassIndex = 0;
+      modified = true;
     }
+
+    // 在 auth-user-pass 后添加 http-proxy
+    newLines.splice(authUserPassIndex + 1, 0, HTTP_PROXY_LINE);
+    modified = true;
 
     // 如果有修改，写回文件
     if (modified) {
