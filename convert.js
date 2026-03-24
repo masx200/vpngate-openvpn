@@ -32,7 +32,7 @@ function parseCSVLine(line) {
     return result;
 }
 
-const csvFile = 'C:/Users/Administrator.WIN-9M55V3EFM0S/Downloads/www.vpngate.net.csv';
+const csvFile = './www.vpngate.net.csv';
 const outputDir = join(__dirname, 'ovpn-files');
 
 // Create output directory if it doesn't exist
