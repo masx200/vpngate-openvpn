@@ -41,12 +41,10 @@ function processOvpnFile(filePath) {
         } else {
           newLines.push(line);
         }
-      }
-      // 跳过原有的 http-proxy 行（后面统一添加）
+      } // 跳过原有的 http-proxy 行（后面统一添加）
       else if (trimmedLine.startsWith("http-proxy")) {
         modified = true; // 删除旧行也算修改
-      }
-      // 其他行保持不变
+      } // 其他行保持不变
       else {
         newLines.push(line);
       }
