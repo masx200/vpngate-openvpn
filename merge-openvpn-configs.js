@@ -3,7 +3,8 @@ import path from "path";
 
 // 配置参数
 const INPUT_PATTERN = ".ovpn"; // 输入文件匹配模式
-const OUTPUT_FILE = "openvpn-load-balance.ovpn"; // 输出文件名
+const OUTPUT_FILE_TCP = "openvpn-load-balance-tcp.ovpn"; // TCP 输出文件名
+const OUTPUT_FILE_UDP = "openvpn-load-balance-udp.ovpn"; // UDP 输出文件名
 const CURRENT_DIR = path.join(process.cwd(), "ovpn-files"); // 当前工作目录
 
 /**
@@ -27,6 +28,8 @@ function parseOvpnFile(filePath) {
   const config = {
     remotes: [],
     otherConfig: [],
+    protocol: null, // 'tcp' 或 'udp'
+    protoLine: null, // 原始 proto 配置行
   };
 
   lines.forEach((line) => {
@@ -39,8 +42,17 @@ function parseOvpnFile(filePath) {
       return;
     }
 
+    // 提取proto字段确定协议类型
+    if (trimmedLine.startsWith("proto ")) {
+      config.protoLine = trimmedLine;
+      if (trimmedLine.includes("tcp")) {
+        config.protocol = "tcp";
+      } else if (trimmedLine.includes("udp")) {
+        config.protocol = "udp";
+      }
+    }
     // 提取remote字段
-    if (trimmedLine.startsWith("remote ")) {
+    else if (trimmedLine.startsWith("remote ")) {
       config.remotes.push(trimmedLine);
     } else {
       // 其他配置字段
@@ -52,7 +64,23 @@ function parseOvpnFile(filePath) {
 }
 
 /**
- * 合并多个配置文件
+ * 按协议类型分组配置
+ * @param {Object[]} configs 配置对象数组
+ * @returns {Object} { tcp: configs, udp: configs }
+ */
+function groupByProtocol(configs) {
+  const grouped = { tcp: [], udp: [] };
+  configs.forEach((config) => {
+    const proto = config.protocol || "tcp"; // 默认 TCP
+    if (grouped[proto]) {
+      grouped[proto].push(config);
+    }
+  });
+  return grouped;
+}
+
+/**
+ * 合并多个配置文件（按协议）
  * @param {Object[]} configs 配置对象数组
  * @returns {Object} 合并后的配置对象
  */
@@ -64,6 +92,8 @@ function mergeConfigs(configs) {
   const mergedConfig = {
     remotes: [],
     otherConfig: [],
+    protocol: configs[0].protocol || "tcp",
+    protoLine: configs[0].protoLine || "proto tcp",
   };
 
   // 收集所有remote字段（去重）
@@ -77,7 +107,6 @@ function mergeConfigs(configs) {
   mergedConfig.remotes = Array.from(remoteSet);
 
   // 使用第一个文件的其他配置作为基础
-  // 可以根据需要调整这个逻辑，比如检查某些关键字段是否存在
   mergedConfig.otherConfig = configs[0].otherConfig;
 
   return mergedConfig;
@@ -86,16 +115,20 @@ function mergeConfigs(configs) {
 /**
  * 生成最终的配置文件内容
  * @param {Object} config 合并后的配置对象
+ * @param {string} protocol 'tcp' 或 'udp'
  * @returns {string} 配置文件内容
  */
-function generateConfigContent(config) {
+function generateConfigContent(config, protocol) {
   const lines = [];
 
   // 添加头部注释
-  //   lines.push("# 自动生成的负载均衡OpenVPN配置文件");
   lines.push(`# 生成时间: ${new Date().toLocaleString()}`);
+  lines.push(`# 协议: ${protocol.toUpperCase()}`);
   lines.push(`# 包含 ${config.remotes.length} 个服务器地址`);
   lines.push("");
+
+  // 添加proto字段
+  lines.push(`proto ${protocol}`);
 
   // 添加remote字段
   if (config.remotes.length > 0) {
@@ -107,9 +140,11 @@ function generateConfigContent(config) {
 
     // 添加remote-random以启用随机选择
   }
-  // 添加其他配置字段
+  // 添加其他配置字段（排除原有的proto行）
   config.otherConfig.forEach((line) => {
-    lines.push(line);
+    if (!line.startsWith("proto ")) {
+      lines.push(line);
+    }
   });
   if (config.remotes.length > 1 && !lines.includes("remote-random")) {
     lines.push("remote-random");
@@ -144,32 +179,44 @@ function main() {
       return parseOvpnFile(path.join(CURRENT_DIR, file));
     });
 
-    // 合并配置
-    console.log("正在合并配置...");
-    const mergedConfig = mergeConfigs(configs);
+    // 按协议类型分组
+    console.log("正在按协议分组...");
+    const grouped = groupByProtocol(configs);
 
-    console.log(`合并结果:`);
-    console.log(`  - 服务器地址: ${mergedConfig.remotes.length} 个`);
-    console.log(`  - 其他配置: ${mergedConfig.otherConfig.length} 行`);
+    const results = [];
 
-    // 生成配置内容
-    const configContent = generateConfigContent(mergedConfig).replaceAll(
-      "proto udp",
-      "proto tcp",
-    );
+    // 处理 TCP 协议
+    if (grouped.tcp.length > 0) {
+      console.log(`\n正在合并 TCP 配置 (${grouped.tcp.length} 个文件)...`);
+      const mergedTcp = mergeConfigs(grouped.tcp);
+      const configContent = generateConfigContent(mergedTcp, "tcp");
 
-    // 写入输出文件
-    const outputPath = path.join(CURRENT_DIR, OUTPUT_FILE);
-    fs.writeFileSync(outputPath, configContent, "utf8");
+      const outputPath = path.join(CURRENT_DIR, OUTPUT_FILE_TCP);
+      fs.writeFileSync(outputPath, configContent, "utf8");
 
-    console.log(`\n配置文件已生成: ${OUTPUT_FILE}`);
-    console.log(`文件大小: ${configContent.length} 字节`);
+      console.log(`  TCP: 生成 ${OUTPUT_FILE_TCP}, 包含 ${mergedTcp.remotes.length} 个服务器`);
+      results.push({ protocol: "TCP", file: OUTPUT_FILE_TCP, count: mergedTcp.remotes.length });
+    }
 
-    // 显示一些统计信息
-    console.log("\n服务器地址列表:");
-    mergedConfig.remotes.forEach((remote, index) => {
-      console.log(`  ${index + 1}. ${remote.replace("remote ", "")}`);
+    // 处理 UDP 协议
+    if (grouped.udp.length > 0) {
+      console.log(`\n正在合并 UDP 配置 (${grouped.udp.length} 个文件)...`);
+      const mergedUdp = mergeConfigs(grouped.udp);
+      const configContent = generateConfigContent(mergedUdp, "udp");
+
+      const outputPath = path.join(CURRENT_DIR, OUTPUT_FILE_UDP);
+      fs.writeFileSync(outputPath, configContent, "utf8");
+
+      console.log(`  UDP: 生成 ${OUTPUT_FILE_UDP}, 包含 ${mergedUdp.remotes.length} 个服务器`);
+      results.push({ protocol: "UDP", file: OUTPUT_FILE_UDP, count: mergedUdp.remotes.length });
+    }
+
+    // 输出汇总
+    console.log("\n========== 生成完成 ==========");
+    results.forEach((r) => {
+      console.log(`  ${r.protocol}: ${r.file} (${r.count} 个服务器)`);
     });
+
   } catch (error) {
     console.error("处理过程中发生错误:", error.message);
     process.exit(1);
@@ -181,4 +228,4 @@ if (import.meta.main) {
   main();
 }
 
-export { generateConfigContent, mergeConfigs, parseOvpnFile, readOvpnFiles };
+export { generateConfigContent, mergeConfigs, parseOvpnFile, readOvpnFiles, groupByProtocol };
