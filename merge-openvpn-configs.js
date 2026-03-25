@@ -13,7 +13,10 @@ const CURRENT_DIR = path.join(process.cwd(), "ovpn-files"); // 当前工作目�
  */
 function readOvpnFiles() {
   const files = fs.readdirSync(CURRENT_DIR);
-  return files.filter((file) => file.endsWith(INPUT_PATTERN));
+  return files.filter((file) =>
+    file.endsWith(INPUT_PATTERN) &&
+    !file.startsWith("openvpn-load-balance-") // 排除生成的输出文件
+  );
 }
 
 /**
