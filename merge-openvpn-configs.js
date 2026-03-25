@@ -50,8 +50,7 @@ function parseOvpnFile(filePath) {
       } else if (trimmedLine.includes("udp")) {
         config.protocol = "udp";
       }
-    }
-    // 提取remote字段
+    } // 提取remote字段
     else if (trimmedLine.startsWith("remote ")) {
       config.remotes.push(trimmedLine);
     } else {
@@ -194,8 +193,14 @@ function main() {
       const outputPath = path.join(CURRENT_DIR, OUTPUT_FILE_TCP);
       fs.writeFileSync(outputPath, configContent, "utf8");
 
-      console.log(`  TCP: 生成 ${OUTPUT_FILE_TCP}, 包含 ${mergedTcp.remotes.length} 个服务器`);
-      results.push({ protocol: "TCP", file: OUTPUT_FILE_TCP, count: mergedTcp.remotes.length });
+      console.log(
+        `  TCP: 生成 ${OUTPUT_FILE_TCP}, 包含 ${mergedTcp.remotes.length} 个服务器`,
+      );
+      results.push({
+        protocol: "TCP",
+        file: OUTPUT_FILE_TCP,
+        count: mergedTcp.remotes.length,
+      });
     }
 
     // 处理 UDP 协议
@@ -207,8 +212,14 @@ function main() {
       const outputPath = path.join(CURRENT_DIR, OUTPUT_FILE_UDP);
       fs.writeFileSync(outputPath, configContent, "utf8");
 
-      console.log(`  UDP: 生成 ${OUTPUT_FILE_UDP}, 包含 ${mergedUdp.remotes.length} 个服务器`);
-      results.push({ protocol: "UDP", file: OUTPUT_FILE_UDP, count: mergedUdp.remotes.length });
+      console.log(
+        `  UDP: 生成 ${OUTPUT_FILE_UDP}, 包含 ${mergedUdp.remotes.length} 个服务器`,
+      );
+      results.push({
+        protocol: "UDP",
+        file: OUTPUT_FILE_UDP,
+        count: mergedUdp.remotes.length,
+      });
     }
 
     // 输出汇总
@@ -216,7 +227,6 @@ function main() {
     results.forEach((r) => {
       console.log(`  ${r.protocol}: ${r.file} (${r.count} 个服务器)`);
     });
-
   } catch (error) {
     console.error("处理过程中发生错误:", error.message);
     process.exit(1);
@@ -228,4 +238,10 @@ if (import.meta.main) {
   main();
 }
 
-export { generateConfigContent, mergeConfigs, parseOvpnFile, readOvpnFiles, groupByProtocol };
+export {
+  generateConfigContent,
+  groupByProtocol,
+  mergeConfigs,
+  parseOvpnFile,
+  readOvpnFiles,
+};
